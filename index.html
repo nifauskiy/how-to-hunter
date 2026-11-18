@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Hunting Island ULTRA PC</title>
+<style>
+body{margin:0;overflow:hidden;background-color:#87ceeb;font-family:'Segoe UI',Tahoma,sans-serif}canvas{display:block}
+#loading-screen{position:absolute;top:0;left:0;width:100%;height:100%;background:url('https://images.unsplash.com/photo-1511497584788-876760111969?q=80&w=2000&auto=format&fit=crop') center/cover no-repeat;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;transition:opacity 0.5s}
+#loading-screen::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:-1}
+#loading-screen h1{font-size:60px;letter-spacing:5px;margin-bottom:30px;color:#f1c40f;text-shadow:0 0 30px rgba(241,196,15,0.8);text-transform:uppercase;font-weight:900;text-align:center}
+#progress-container{width:400px;height:20px;background:rgba(0,0,0,0.8);border:2px solid #f1c40f;border-radius:10px;overflow:hidden}
+#progress-bar{width:0%;height:100%;background:linear-gradient(90deg,#f1c40f,#e67e22);transition:width 0.1s linear}
+#progress-text{margin-top:15px;font-size:24px;font-weight:bold;color:#fff}
+#crosshair{position:absolute;top:50%;left:50%;width:6px;height:6px;margin-left:-3px;margin-top:-3px;background:red;border-radius:50%;pointer-events:none;transition:0.1s;z-index:10}
+#crosshair.hit{background:lime;width:10px;height:10px;margin-left:-5px;margin-top:-5px}
+#hud{position:absolute;top:20px;left:20px;color:white;font-size:24px;font-weight:bold;text-shadow:2px 2px 4px rgba(0,0,0,0.8);pointer-events:none;user-select:none;z-index:10}
+#ammo{color:#f1c40f;font-size:20px;margin-top:5px}
+#inventory{position:absolute;bottom:30px;left:50%;transform:translateX(-50%);display:flex;gap:15px;pointer-events:none;z-index:10}
+.inv-slot{width:70px;height:70px;background:rgba(0,0,0,0.6);border:2px solid #555;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:14px}
+.inv-slot.filled{border-color:#e74c3c;background:rgba(50,0,0,0.7)}
+.inv-slot.cooked{border-color:#2ecc71;background:rgba(0,50,0,0.7)}
+.inv-icon{width:30px;height:20px;border-radius:4px;margin-bottom:5px}
+.raw-icon{background:#e74c3c;box-shadow:inset 0 0 5px #000}
+.cooked-icon{background:#d35400;box-shadow:inset 0 0 5px #000}
+#interaction-hint{position:absolute;top:65%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.8);color:white;padding:10px 20px;font-size:20px;border-radius:5px;border:2px solid #f1c40f;display:none;font-weight:bold;text-align:center;z-index:10}
+#hit-marker{position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);color:#ff4757;font-size:40px;font-weight:bold;text-shadow:2px 2px 0 #000;pointer-events:none;opacity:0;transition:opacity 0.2s;z-index:10}
+#compass-container{position:absolute;top:15px;left:50%;transform:translateX(-50%);display:none;z-index:10;pointer-events:none;width:80px;height:80px}
+#compass-arrow{transition:transform 0.1s;display:block;filter:drop-shadow(0px 0px 5px rgba(0,0,0,0.8));overflow:visible}
+#water-warning{position:absolute;top:25%;left:50%;transform:translate(-50%,-50%);color:#ff0000;font-size:30px;font-weight:bold;text-align:center;text-shadow:2px 2px 0 #000,-2px -2px 0 #000,2px -2px 0 #000,-2px 2px 0 #000;display:none;z-index:20;animation:pulse 1s infinite alternate}
+@keyframes pulse{from{transform:translate(-50%,-50%) scale(1)}to{transform:translate(-50%,-50%) scale(1.1)}}
+#settings-menu{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:100;color:white}
+.settings-box{background:#222;border:2px solid #f1c40f;border-radius:15px;padding:30px;width:650px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 0 20px rgba(241,196,15,0.2)}
+.settings-tabs{display:flex;gap:10px;margin-bottom:20px;border-bottom:2px solid #444;padding-bottom:10px;flex-wrap:wrap}
+.tab-btn{background:#333;color:#aaa;border:none;padding:10px 15px;font-size:16px;cursor:pointer;border-radius:5px;transition:0.2s}
+.tab-btn.active{background:#f1c40f;color:#000;font-weight:bold}
+.tab-content{display:none;flex-direction:column;gap:10px;overflow-y:auto;padding-right:10px}
+.tab-content.active{display:flex}
+.setting-row{display:flex;justify-content:space-between;align-items:center;font-size:16px}
+.setting-row input[type="range"]{width:150px}
+.setting-row input[type="text"]{width:60px;text-align:center;background:#333;border:1px solid #555;color:#fff;padding:5px;border-radius:4px;font-weight:bold;text-transform:uppercase;cursor:pointer}
+.setting-row select{background:#333;color:#fff;border:1px solid #555;padding:5px 10px;border-radius:4px;font-size:16px}
+.close-btn{background:#e74c3c;color:white;border:none;padding:15px;font-size:18px;font-weight:bold;border-radius:8px;cursor:pointer;margin-top:20px;width:100%;transition:0.2s}
+.close-btn:hover{background:#c0392b}
+#shop-menu{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:100;color:white}
+.shop-box{background:#222;border:2px solid #f1c40f;border-radius:15px;padding:30px;width:700px;box-shadow:0 0 20px rgba(241,196,15,0.2)}
+.shop-box h2{margin-top:0;text-align:center;color:#f1c40f;font-size:28px}
+.shop-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin:20px 0}
+.shop-item{background:#333;border:2px solid #555;border-radius:10px;padding:20px;text-align:center;cursor:pointer;transition:0.2s;display:flex;flex-direction:column;align-items:center}
+.shop-item:hover{border-color:#f1c40f}
+.shop-item.selected{border-color:#2ecc71;background:#2a4a2a;box-shadow:0 0 15px rgba(46,204,113,0.5)}
+.shop-item.owned{opacity:0.5;pointer-events:none;border-color:#2ecc71}
+.item-icon{font-size:50px;margin-bottom:10px}
+.item-name{font-size:20px;font-weight:bold;margin-bottom:5px}
+.item-price{color:#f1c40f;font-size:18px;font-weight:bold}
+.buy-btn{background:#2ecc71;color:#000;border:none;padding:15px;font-size:20px;font-weight:bold;border-radius:8px;cursor:pointer;width:100%;transition:0.2s;margin-top:10px;display:none}
+.buy-btn:hover{background:#27ae60}
+.buy-btn:disabled{background:#555;color:#888;cursor:not-allowed}
+.close-shop-btn{background:#e74c3c;color:white;border:none;padding:15px;font-size:18px;font-weight:bold;border-radius:8px;cursor:pointer;margin-top:10px;width:100%;transition:0.2s}
+.close-shop-btn:hover{background:#c0392b}
+#blocker{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);color:white;display:flex;align-items:center;justify-content:center;flex-direction:column;font-size:24px;text-align:center;cursor:pointer;z-index:50;display:none}
+</style>
+<script src="/socket.io/socket.io.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
+</head>
+<body>
+<div id="loading-screen"><h1>HOW TO HUNTER ULTRA</h1><div id="progress-container"><div id="progress-bar"></div></div><div id="progress-text">0%</div></div>
+<div id="settings-menu">
+<div class="settings-box">
+<h2 style="margin-top:0;text-align:center;color:#f1c40f;">НАСТРОЙКИ</h2>
+<div class="settings-tabs">
+<button class="tab-btn active" onclick="switchTab(event,'graphics')">Графика</button>
+<button class="tab-btn" onclick="switchTab(event,'controls')">Управление</button>
+<button class="tab-btn" onclick="switchTab(event,'crosshair')">Прицел</button>
+</div>
+<div id="tab-graphics" class="tab-content active"><div class="setting-row"><span>Качество:</span><select id="graphics-select" onchange="setGraphics(this.value)"><option value="normal">Ультра (Высокое)</option><option value="potato">Картофельное</option></select></div></div>
+<div id="tab-controls" class="tab-content">
+<div class="setting-row"><span>Вперед:</span> <input type="text" id="bind-forward" readonly value="W"></div>
+<div class="setting-row"><span>Назад:</span> <input type="text" id="bind-backward" readonly value="S"></div>
+<div class="setting-row"><span>Влево:</span> <input type="text" id="bind-left" readonly value="A"></div>
+<div class="setting-row"><span>Вправо:</span> <input type="text" id="bind-right" readonly value="D"></div>
+<div class="setting-row"><span>Прыжок:</span> <input type="text" id="bind-jump" readonly value="SPACE"></div>
+<div class="setting-row"><span>Действие (Е):</span> <input type="text" id="bind-interact" readonly value="E"></div>
+<div class="setting-row"><span>Glock (1):</span> <input type="text" id="bind-w1" readonly value="1"></div>
+<div class="setting-row"><span>Deagle (2):</span> <input type="text" id="bind-w2" readonly value="2"></div>
+<div class="setting-row"><span>Факел:</span> <input type="text" id="bind-torch" readonly value="5"></div>
+<div class="setting-row"><span>Перезарядка:</span> <input type="text" id="bind-reload" readonly value="R"></div>
+<div class="setting-row"><span>Продать мясо:</span> <input type="text" id="bind-sell" readonly value="F"></div>
+</div>
+<div id="tab-crosshair" class="tab-content"><div class="setting-row"><span>Размер:</span><input type="range" id="ch-size" min="2" max="20" value="6" oninput="updateCrosshair()"></div><div class="setting-row"><span>Цвет:</span><input type="color" id="ch-color" value="#ff0000" onchange="updateCrosshair()"></div></div>
+<button class="close-btn" onclick="closeSettings()">ПРОДОЛЖИТЬ ИГРУ</button>
+</div>
+</div>
+<div id="shop-menu">
+<div class="shop-box">
+<h2>МАГАЗИН ДЯДЬКИ</h2>
+<div class="shop-grid">
+<div class="shop-item" id="item-gun" onclick="selectShopItem('gun')"><div class="item-icon">🔫</div><div class="item-name">Desert Eagle</div><div class="item-price">100 $</div></div>
+<div class="shop-item" id="item-torch" onclick="selectShopItem('torch')"><div class="item-icon">🔥</div><div class="item-name">Факел</div><div class="item-price">100 $</div></div>
+<div class="shop-item" id="item-key" onclick="selectShopItem('key')"><div class="item-icon">🔑</div><div class="item-name">Ключ от катера</div><div class="item-price">1000 $</div></div>
+</div>
+<button class="buy-btn" id="shop-buy-btn" onclick="buySelectedItem()">КУПИТЬ</button>
+<button class="close-shop-btn" onclick="closeShop()">ЗАКРЫТЬ (ESC)</button>
+</div>
+</div>
+<div id="crosshair"></div>
+<div id="compass-container"><svg id="compass-arrow" width="80" height="80" viewBox="0 0 80 80"><path d="M40 15 L15 65 L40 50 L65 65 Z" fill="#f1c40f" stroke="#000" stroke-width="3" stroke-linejoin="round"/><circle cx="40" cy="15" r="8" fill="#e74c3c" stroke="#000" stroke-width="2"/></svg></div>
+<div id="water-warning"></div>
+<div id="hud">Монеты: <span id="money">0</span><br><span id="ammo">Патроны: 2 / 2</span><br><span id="weapon-name" style="font-size:16px;color:#aaa;">Glock-18</span></div>
+<div id="inventory"><div class="inv-slot" id="slot-raw"><div class="inv-icon raw-icon" style="display:none;"></div><span id="raw-count">Сырое: 0</span></div><div class="inv-slot" id="slot-cooked"><div class="inv-icon cooked-icon" style="display:none;"></div><span id="cooked-count">Готовое: 0</span></div></div>
+<div id="interaction-hint"></div><div id="hit-marker"></div><div id="blocker"><h2>Кликни, чтобы играть</h2></div>
+
+<script type="importmap">
+{
+"imports": {
+"three": "https://cdn.jsdelivr.net/npm/three@0.164/build/three.module.js",
+"three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164/examples/jsm/"
+}
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+
+const sounds = {
+    glock: new Howl({ src: ['https://cdn.pixabay.com/download/audio/2022/03/15/audio_2c1b0b4c4d.mp3?filename=single-pistol-gunshot-3-101923.mp3'], volume: 0.5 }),
+    deagle: new Howl({ src: ['https://cdn.pixabay.com/download/audio/2022/03/10/audio_174b2b6763.mp3?filename=desert-eagle-90136.mp3'], volume: 0.8 }),
+    reload: new Howl({ src: ['https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3?filename=gun-reload-3-395174.mp3'], volume: 0.6 }),
+    empty: new Howl({ src: ['https://cdn.pixabay.com/download/audio/2022/03/15/audio_1b1b1b1b1b.mp3?filename=gun-empty-click-2-36455.mp3'], volume: 0.5 }), 
+    step: new Howl({ src: ['https://cdn.pixabay.com/download/audio/2022/03/15/audio_2c1b0b4c4d.mp3?filename=walk-on-grass-1-291984.mp3'], volume: 0.3 }),
+    jump: new Howl({ src: ['https://cdn.pixabay.com/download/audio/2022/03/15/audio_174b2b6763.mp3?filename=jumplanding-398256.mp3'], volume: 0.4 }),
+    cow: new Howl({ src: ['https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3?filename=cow-moo-521757.mp3'], volume: 0.5 }),
+    birds: new Howl({ src: ['https://cdn.pixabay.com/download/audio/2022/03/15/audio_2c1b0b4c4d.mp3?filename=forestbirds-319791.mp3'], volume: 0.15, loop: true, autoplay: true }),
+    grill: new Howl({ src: ['https://cdn.pixabay.com/download/audio/2022/03/15/audio_174b2b6763.mp3?filename=fire-sounds-356121.mp3'], volume: 0.5, loop: true }),
+    boat: new Howl({ src: ['https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3?filename=boat-motor-idle-12345.mp3'], volume: 0.4, loop: true }),
+    pickup: new Howl({ src: ['https://cdn.pixabay.com/download/audio/2022/03/15/audio_2c1b0b4c4d.mp3?filename=item-pickup-2-35995.mp3'], volume: 0.5 }),
+    buy: new Howl({ src: ['https://cdn.pixabay.com/download/audio/2022/03/15/audio_174b2b6763.mp3?filename=cash-register-purchase-87313.mp3'], volume: 0.6 }),
+    kill: new Howl({ src: ['https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3?filename=hit-mark-01-96618.mp3'], volume: 0.6 })
+};
+
+function resumeAudio() {
+    if (Howler.ctx && Howler.ctx.state === 'suspended') Howler.ctx.resume();
+    if (!sounds.birds.playing()) sounds.birds.play();
+}
+window.addEventListener('click', resumeAudio);
+window.addEventListener('keydown', resumeAudio);
+
+const loadingScreen = document.getElementById('loading-screen'), progressBar = document.getElementById('progress-bar'), progressText = document.getElementById('progress-text'), blockerMenu = document.getElementById('blocker');
+let loadStartTime = null; const loadDuration = 3000;
+function updateLoading(t) {
+    if(!loadStartTime) loadStartTime = t;
+    const p = Math.min(((t - loadStartTime) / loadDuration) * 100, 100);
+    progressBar.style.width = p + '%'; progressText.innerText = Math.floor(p) + '%';
+    if(p < 100) requestAnimationFrame(updateLoading);
+    else { loadingScreen.style.opacity = '0'; setTimeout(() => { loadingScreen.style.display = 'none'; blockerMenu.style.display = 'flex'; }, 500); }
+}
+requestAnimationFrame(updateLoading);
+
+let camera, scene, renderer, controls;
+const raycaster = new THREE.Raycaster(), clock = new THREE.Clock(), objects = [];
+const moveState = { forward: false, backward: false, left: false, right: false };
+const velocity = new THREE.Vector3(), direction = new THREE.Vector3();
+let canJump = false, money = 0, ammo = 2, maxAmmo = 2, isReloading = false, hasDeagle = false, reloadTimeout;
+let socket, hasBoatKey = false, inBoat = false, waterTimer = 0, isInWater = false;
+let boatSpeed = 0, boatRotation = 0; const MAX_BOAT_SPEED = 13, ISLAND_DISTANCE = 780; let boatLocked = false;
+let hasTorch = false, torchLight, currentWeapon = 'glock';
+let shopMenuOpen = false, selectedShopItem = null;
+const animals = [], MAX_ANIMALS = 10; let deerKillCount = 0;
+const meats = []; let rawMeat = 0, cookedMeat = 0, isCooking = false, cookTimer = 0, grillMeatMesh = null, deadAnimals = [];
+let shopDealer, grillStation, boatMesh, isNearShop = false, isNearGrill = false, isNearBoat = false, nearMeat = null;
+let weaponModel = new THREE.Group(), smokeParticles = [], walkTime = 0, recoilTime = 0, raycastTimer = 0, stepTimer = 0;
+const tempVec1 = new THREE.Vector3(); let dirLight, hemiLight, moonLight, gameTime = 0, sunMesh, moonMesh, grassMesh;
+const clouds = [], otherPlayers = {}, targetPositions = {}, obstacles = [];
+
+const keyBinds = { forward: 'KeyW', backward: 'KeyS', left: 'KeyA', right: 'KeyD', jump: 'Space', interact: 'KeyE', weapon1: 'Digit1', weapon2: 'Digit2', torch: 'Digit5', reload: 'KeyR', sell: 'KeyF' };
+function formatKeyName(code) { return code.replace('Key', '').replace('Digit', '').replace('Space', 'SPACE'); }
+const bindInputs = { 'bind-forward': 'forward', 'bind-backward': 'backward', 'bind-left': 'left', 'bind-right': 'right', 'bind-jump': 'jump', 'bind-interact': 'interact', 'bind-w1': 'weapon1', 'bind-w2': 'weapon2', 'bind-torch': 'torch', 'bind-reload': 'reload', 'bind-sell': 'sell' };
+for (const [inputId, bindName] of Object.entries(bindInputs)) {
+    const input = document.getElementById(inputId); input.value = formatKeyName(keyBinds[bindName]);
+    input.addEventListener('focus', () => {
+        input.value = 'Нажми...';
+        const onKeyDown = (e) => {
+            e.preventDefault(); e.stopPropagation(); if (e.code === 'Escape') { input.blur(); return; }
+            keyBinds[bindName] = e.code; input.value = formatKeyName(e.code); input.blur(); document.removeEventListener('keydown', onKeyDown, true);
+        };
+        document.addEventListener('keydown', onKeyDown, true);
+    });
+    input.addEventListener('blur', () => { if (input.value === 'Нажми...') input.value = formatKeyName(keyBinds[bindName]); });
+}
+
+window.openShop = function() { shopMenuOpen = true; document.getElementById('shop-menu').style.display = 'flex'; controls.unlock(); updateShopUI(); sounds.buy.play(); };
+window.closeShop = function() { shopMenuOpen = false; document.getElementById('shop-menu').style.display = 'none'; controls.lock(); };
+window.selectShopItem = function(item) { selectedShopItem = item; document.querySelectorAll('.shop-item').forEach(el => el.classList.remove('selected')); document.getElementById('item-' + item).classList.add('selected'); updateShopUI(); };
+window.buySelectedItem = function() {
+    if (selectedShopItem === 'gun' && money >= 100 && !hasDeagle) {
+        money -= 100; hasDeagle = true; maxAmmo = 7; ammo = maxAmmo; switchWeapon('deagle'); sounds.buy.play();
+        document.getElementById('weapon-name').innerText = "Desert Eagle"; document.getElementById('weapon-name').style.color = "#f39c12";
+        const bg = shopDealer.getObjectByName('buyable_gun'); if (bg) bg.visible = false;
+    } else if (selectedShopItem === 'torch' && money >= 100 && !hasTorch) {
+        money -= 100; hasTorch = true; const tm = shopDealer.getObjectByName('buyable_torch'); if (tm) tm.visible = false; showHitMarker("Факел куплен! Нажми [5]", "#f1c40f"); sounds.buy.play();
+    } else if (selectedShopItem === 'key' && money >= 1000 && !hasBoatKey) {
+        money -= 1000; hasBoatKey = true; document.getElementById('compass-container').style.display = 'block'; const km = shopDealer.getObjectByName('boat_key'); if (km) km.visible = false;
+        if (socket) socket.emit('buyKey'); showHitMarker("Ключ куплен!", "#f1c40f"); sounds.buy.play();
+    }
+    document.getElementById('money').innerText = money; updateShopUI();
+};
+function updateShopUI() {
+    document.getElementById('money').innerText = money; const btn = document.getElementById('shop-buy-btn');
+    if (!selectedShopItem) { btn.style.display = 'none'; return; }
+    btn.style.display = 'block';
+    if (selectedShopItem === 'gun') { const el = document.getElementById('item-gun'); if (hasDeagle) { el.classList.add('owned'); btn.innerText = "УЖЕ КУПЛЕНО"; btn.disabled = true; } else { btn.innerText = "КУПИТЬ ЗА 100 $"; btn.disabled = money < 100; } }
+    else if (selectedShopItem === 'torch') { const el = document.getElementById('item-torch'); if (hasTorch) { el.classList.add('owned'); btn.innerText = "УЖЕ КУПЛЕНО"; btn.disabled = true; } else { btn.innerText = "КУПИТЬ ЗА 100 $"; btn.disabled = money < 100; } }
+    else if (selectedShopItem === 'key') { const el = document.getElementById('item-key'); if (hasBoatKey) { el.classList.add('owned'); btn.innerText = "УЖЕ КУПЛЕНО"; btn.disabled = true; } else { btn.innerText = "КУПИТЬ ЗА 1000 $"; btn.disabled = money < 1000; } }
+}
+
+const settingsMenu = document.getElementById('settings-menu');
+window.switchTab = function(e, tabName) { document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active')); document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active')); e.target.classList.add('active'); document.getElementById('tab-' + tabName).classList.add('active'); };
+window.closeSettings = function() { settingsMenu.style.display = 'none'; controls.lock(); };
+window.updateCrosshair = function() { const size = document.getElementById('ch-size').value; const color = document.getElementById('ch-color').value; const ch = document.getElementById('crosshair'); ch.style.width = size + 'px'; ch.style.height = size + 'px'; ch.style.marginLeft = -(size / 2) + 'px'; ch.style.marginTop = -(size / 2) + 'px'; ch.style.background = color; };
+window.setGraphics = function(mode) {
+    if (mode === 'potato') { renderer.shadowMap.enabled = false; renderer.setPixelRatio(0.5); scene.fog = new THREE.Fog(0x87CEEB, 15, 70); grassMesh.visible = false; }
+    else { renderer.shadowMap.enabled = true; renderer.setPixelRatio(window.devicePixelRatio); scene.fog = null; grassMesh.visible = true; }
+};
+
+function switchWeapon(wep) {
+    if (wep === 'deagle' && !hasDeagle) return;
+    if (wep === 'torch' && !hasTorch) return;
+    currentWeapon = wep;
+    clearTimeout(reloadTimeout); isReloading = false; 
+    if (wep === 'glock') { maxAmmo = 2; ammo = 2; document.getElementById('weapon-name').innerText = "Glock-18"; document.getElementById('weapon-name').style.color = "#aaa"; }
+    if (wep === 'deagle') { maxAmmo = 7; ammo = 7; document.getElementById('weapon-name').innerText = "Desert Eagle"; document.getElementById('weapon-name').style.color = "#f39c12"; }
+    if (wep === 'torch') { document.getElementById('weapon-name').innerText = "Факел"; document.getElementById('weapon-name').style.color = "#e67e22"; }
+    updateAmmoUI(); createWeapon();
+}
+
+init();
+function init() {
+    scene = new THREE.Scene(); scene.background = new THREE.Color(0x87CEEB); scene.fog = null;
+    renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    renderer.setSize(window.innerWidth, window.innerHeight); renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.2;
+    document.body.appendChild(renderer.domElement);
+
+    hemiLight = new THREE.HemisphereLight(0xffffff, 0x666666, 1.2); scene.add(hemiLight);
+    dirLight = new THREE.DirectionalLight(0xffe4b5, 1.8); dirLight.position.set(20, 100, 20); dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048; dirLight.shadow.mapSize.height = 2048; dirLight.shadow.camera.near = 0.5; dirLight.shadow.camera.far = 100;
+    dirLight.shadow.camera.left = -40; dirLight.shadow.camera.right = 40; dirLight.shadow.camera.top = 40; dirLight.shadow.camera.bottom = -40;
+    dirLight.shadow.bias = -0.0005; dirLight.shadow.normalBias = 0.05; scene.add(dirLight);
+
+    sunMesh = new THREE.Mesh(new THREE.SphereGeometry(3, 32, 32), new THREE.MeshBasicMaterial({ color: 0xffdd00, transparent: true, opacity: 0.9 })); scene.add(sunMesh);
+    moonMesh = new THREE.Mesh(new THREE.SphereGeometry(3, 32, 32), new THREE.MeshBasicMaterial({ color: 0xddddff, transparent: true, opacity: 0.9 })); scene.add(moonMesh);
+    moonLight = new THREE.DirectionalLight(0x8899ff, 0); scene.add(moonLight);
+
+    const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, flatShading: true });
+    for (let i = 0; i < 20; i++) {
+        const cloudGroup = new THREE.Group(); const p1 = new THREE.Mesh(new THREE.SphereGeometry(10, 7, 7), cloudMat);
+        const p2 = new THREE.Mesh(new THREE.SphereGeometry(12, 7, 7), cloudMat); p2.position.set(8, -2, 0);
+        const p3 = new THREE.Mesh(new THREE.SphereGeometry(8, 7, 7), cloudMat); p3.position.set(-8, -1, 0);
+        const p4 = new THREE.Mesh(new THREE.SphereGeometry(9, 7, 7), cloudMat); p4.position.set(0, 5, -5);
+        cloudGroup.add(p1, p2, p3, p4); cloudGroup.position.set(Math.random() * 800 - 400, 80 + Math.random() * 30, Math.random() * 800 - 400);
+        cloudGroup.userData = { speed: 0.5 + Math.random() * 0.5 }; scene.add(cloudGroup); clouds.push(cloudGroup);
+    }
+
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000); camera.position.y = 1.7;
+    controls = new PointerLockControls(camera, document.body); 
+    blockerMenu.addEventListener('click', () => { 
+        resumeAudio();
+        controls.lock(); 
+    });
+    controls.addEventListener('lock', () => { 
+        blockerMenu.style.display = 'none'; settingsMenu.style.display = 'none'; 
+        resumeAudio();
+    });
+    controls.addEventListener('unlock', () => { if (!shopMenuOpen) settingsMenu.style.display = 'flex'; });
+
+    createWorld(); createShop(); createBoat(); spawnInitialAnimals(); createWeapon();
+
+    document.addEventListener('keydown', (e) => {
+        if (shopMenuOpen) { if (e.code === 'Escape') closeShop(); return; }
+        if (e.ctrlKey && e.code === 'KeyX') { money += 999999; document.getElementById('money').innerText = money; return; }
+        if (e.code === keyBinds.forward) moveState.forward = true; else if (e.code === keyBinds.backward) moveState.backward = true;
+        else if (e.code === keyBinds.left) moveState.left = true; else if (e.code === keyBinds.right) moveState.right = true;
+        else if (e.code === keyBinds.jump) { if (canJump && !inBoat) { velocity.y = 12; canJump = false; sounds.jump.play(); } }
+        else if (e.code === keyBinds.interact) { if (isNearShop) openShop(); else if (inBoat) toggleBoat(); else if (isNearBoat) toggleBoat(); else if (isNearGrill) interactGrill(); else if (nearMeat) pickUpMeat(nearMeat); }
+        else if (e.code === keyBinds.reload) reload(); else if (e.code === keyBinds.sell && isNearShop) sellMeat();
+        else if (e.code === keyBinds.weapon1) switchWeapon('glock');
+        else if (e.code === keyBinds.weapon2) switchWeapon('deagle');
+        else if (e.code === keyBinds.torch && hasTorch) switchWeapon('torch');
+    });
+    document.addEventListener('keyup', (e) => {
+        if (e.code === keyBinds.forward) moveState.forward = false; else if (e.code === keyBinds.backward) moveState.backward = false;
+        else if (e.code === keyBinds.left) moveState.left = false; else if (e.code === keyBinds.right) moveState.right = false;
+    });
+    document.addEventListener('mousedown', (e) => { if (e.button === 0 && controls.isLocked && !inBoat && currentWeapon !== 'torch') shoot(); });
+    window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+    initNetwork(); animate();
+}
+
+function createGrassBladeTexture() { const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 64; const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, 64, 64); ctx.fillStyle = '#3a7d44'; ctx.beginPath(); ctx.moveTo(32, 64); ctx.quadraticCurveTo(10, 30, 20, 0); ctx.quadraticCurveTo(32, 20, 44, 0); ctx.quadraticCurveTo(54, 30, 32, 64); ctx.fill(); ctx.fillStyle = '#4b9c56'; ctx.beginPath(); ctx.moveTo(32, 64); ctx.quadraticCurveTo(25, 30, 32, 10); ctx.quadraticCurveTo(40, 30, 32, 64); ctx.fill(); return new THREE.CanvasTexture(canvas); }
+function createBarkTexture() { const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 256; const ctx = canvas.getContext('2d'); ctx.fillStyle = '#3e2723'; ctx.fillRect(0, 0, 64, 256); ctx.fillStyle = '#281815'; for(let i=0; i<50; i++) { ctx.fillRect(Math.random()*64, Math.random()*256, 2, 20 + Math.random()*40); } const tex = new THREE.CanvasTexture(canvas); tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(2, 1); return tex; }
+function createTreeTexture() { const canvas = document.createElement('canvas'); canvas.width = 128; canvas.height = 128; const ctx = canvas.getContext('2d'); ctx.fillStyle = '#1b5e20'; ctx.fillRect(0, 0, 128, 128); for(let i=0; i<2000; i++) { ctx.fillStyle = Math.random() > 0.5 ? '#2e7d32' : '#0d3b13'; ctx.beginPath(); ctx.arc(Math.random()*128, Math.random()*128, Math.random()*2, 0, Math.PI*2); ctx.fill(); } return new THREE.CanvasTexture(canvas); }
+
+function createWorld() {
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000), new THREE.MeshLambertMaterial({ color: 0x0055ff })); water.rotation.x = -Math.PI / 2; water.position.y = -0.8; scene.add(water);
+    const beach = new THREE.Mesh(new THREE.CylinderGeometry(48, 48, 2, 32), new THREE.MeshLambertMaterial({ color: 0xd2b48c })); beach.position.y = -1.1; beach.receiveShadow = true; scene.add(beach);
+    const island = new THREE.Mesh(new THREE.CylinderGeometry(45, 45, 2, 32), new THREE.MeshLambertMaterial({ color: 0x2d5a27 })); island.position.y = -1.0; island.receiveShadow = true; scene.add(island);
+    const beach2 = new THREE.Mesh(new THREE.CylinderGeometry(48, 48, 2, 32), new THREE.MeshLambertMaterial({ color: 0xd2b48c })); beach2.position.set(ISLAND_DISTANCE, -1.1, 0); beach2.receiveShadow = true; scene.add(beach2);
+    const newIsland = new THREE.Mesh(new THREE.CylinderGeometry(45, 45, 2, 32), new THREE.MeshLambertMaterial({ color: 0x2d5a27 })); newIsland.position.set(ISLAND_DISTANCE, -1.0, 0); newIsland.receiveShadow = true; scene.add(newIsland);
+
+    const grassTex = createGrassBladeTexture(); const grassGeo = new THREE.PlaneGeometry(0.3, 0.4); grassGeo.translate(0, 0.2, 0);
+    const grassMat = new THREE.MeshLambertMaterial({ map: grassTex, alphaTest: 0.5, side: THREE.DoubleSide });
+    grassMesh = new THREE.InstancedMesh(grassGeo, grassMat, 25000); grassMesh.castShadow = false; grassMesh.receiveShadow = true;
+    const dummy = new THREE.Object3D();
+    for(let i=0; i<25000; i++) {
+        const angle = Math.random() * Math.PI * 2, dist = Math.random() * 44;
+        dummy.position.set(Math.cos(angle) * dist, 0, Math.sin(angle) * dist); dummy.rotation.y = Math.random() * Math.PI;
+        const scale = 0.5 + Math.random() * 1.2; dummy.scale.set(scale, scale, scale);
+        dummy.rotation.x = (Math.random() - 0.5) * 0.2; dummy.rotation.z = (Math.random() - 0.5) * 0.2;
+        dummy.updateMatrix(); grassMesh.setMatrixAt(i, dummy.matrix);
+    }
+    scene.add(grassMesh);
+
+    const barkTex = createBarkTexture(); const treeTex = createTreeTexture();
+    for (let i = 0; i < 45; i++) {
+        const angle = Math.random() * Math.PI * 2, dist = 10 + Math.random() * 32; const x = Math.cos(angle) * dist, z = Math.sin(angle) * dist;
+        const distToShop = Math.sqrt(x**2 + (z - 10)**2); const distToSpawn = Math.sqrt(x**2 + z**2);
+        if (distToShop < 8 || distToSpawn < 6) continue;
+        if (Math.random() > 0.4) {
+            const tree = new THREE.Group();
+            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.6, 4, 16), new THREE.MeshLambertMaterial({ map: barkTex })); trunk.position.y = 2; trunk.castShadow = true; tree.add(trunk);
+            const leavesMat = new THREE.MeshLambertMaterial({ map: treeTex });
+            const l1 = new THREE.Mesh(new THREE.ConeGeometry(2.5, 3, 16), leavesMat); l1.position.y = 4; l1.castShadow = true; tree.add(l1);
+            const l2 = new THREE.Mesh(new THREE.ConeGeometry(2, 2.5, 16), leavesMat); l2.position.y = 5.5; l2.castShadow = true; tree.add(l2);
+            const l3 = new THREE.Mesh(new THREE.ConeGeometry(1.4, 2, 16), leavesMat); l3.position.y = 7; l3.castShadow = true; tree.add(l3);
+            tree.position.set(x, 0, z); scene.add(tree); objects.push(tree); obstacles.push({ mesh: tree, radius: 1.2 });
+        } else {
+            const rockSize = 0.25 + Math.random() * 0.2;
+            const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(rockSize, 2), new THREE.MeshLambertMaterial({ color: 0x888888, flatShading: true }));
+            rock.position.set(x, rockSize * 0.5, z); rock.rotation.set(Math.random(), Math.random(), Math.random()); rock.castShadow = true; rock.receiveShadow = true;
+            scene.add(rock); objects.push(rock); obstacles.push({ mesh: rock, radius: rockSize + 0.3 });
+        }
+    }
+}
+
+function createShop() {
+    shopDealer = new THREE.Group(); const woodMat = new THREE.MeshLambertMaterial({ color: 0x5c4033 }); const skinMat = new THREE.MeshLambertMaterial({ color: 0xffcc99 }); const blackMat = new THREE.MeshBasicMaterial({ color: 0x000000 }); const whiteMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const tableTop = new THREE.Mesh(new THREE.BoxGeometry(2, 0.1, 1.2), woodMat); tableTop.position.y = 0.8; tableTop.castShadow = true; tableTop.receiveShadow = true; shopDealer.add(tableTop);
+    const legPositions = [[-0.8, -0.4], [0.8, -0.4], [-0.8, 0.4], [0.8, 0.4]];
+    legPositions.forEach(pos => { const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.8, 16), woodMat); leg.position.set(pos[0], 0.4, pos[1]); shopDealer.add(leg); });
+    const gunGroup = new THREE.Group(); const gPolymer = new THREE.MeshLambertMaterial({ color: 0x111111 }); const gMetal = new THREE.MeshLambertMaterial({ color: 0x333333 });
+    const gSlide = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.15, 0.65), gMetal); gSlide.position.set(0, 0.05, -0.2); gunGroup.add(gSlide);
+    const gHandle = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.35, 0.15), gPolymer); gHandle.position.set(0, -0.15, 0.05); gHandle.rotation.x = -0.3; gunGroup.add(gHandle);
+    gunGroup.rotation.z = Math.PI / 2; gunGroup.rotation.y = Math.PI / 4; gunGroup.position.set(-0.4, 0.88, 0.1); gunGroup.name = 'buyable_gun'; shopDealer.add(gunGroup);
+    const torchGroup = new THREE.Group(); const tHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.6, 16), new THREE.MeshLambertMaterial({ color: 0x3e2723 })); tHandle.rotation.z = Math.PI / 2; torchGroup.add(tHandle);
+    const tFire = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 16), new THREE.MeshBasicMaterial({ color: 0xff4500 })); tFire.position.set(-0.35, 0, 0); torchGroup.add(tFire);
+    torchGroup.rotation.y = Math.PI / 4; torchGroup.position.set(0, 0.88, 0.1); torchGroup.name = 'buyable_torch'; shopDealer.add(torchGroup);
+    const keyGroup = new THREE.Group(); const keyMat = new THREE.MeshLambertMaterial({ color: 0xffd700 });
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.03, 16, 32), keyMat); ring.rotation.x = Math.PI / 2; keyGroup.add(ring);
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.4, 16), keyMat); shaft.rotation.x = Math.PI / 2; shaft.position.set(0, 0, 0.2); keyGroup.add(shaft);
+    const teeth = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 0.05), keyMat); teeth.position.set(-0.05, 0, 0.35); keyGroup.add(teeth);
+    keyGroup.rotation.y = Math.PI / 4; keyGroup.position.set(0.4, 0.9, 0.1); keyGroup.name = 'boat_key'; shopDealer.add(keyGroup);
+    const chairSeat = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.1, 0.6), woodMat); chairSeat.position.set(0, 0.4, -0.9); shopDealer.add(chairSeat);
+    const chairBack = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.8, 0.1), woodMat); chairBack.position.set(0, 0.8, -1.2); shopDealer.add(chairBack);
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 0.8, 24), new THREE.MeshLambertMaterial({ color: 0x2e8b57 })); torso.position.set(0, 0.85, -0.9); torso.castShadow = true; shopDealer.add(torso);
+    const pantsMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a }); const shoeMat = new THREE.MeshLambertMaterial({ color: 0x3e2723 });
+    const thighL = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.5, 16), pantsMat); thighL.position.set(-0.15, 0.4, -0.6); thighL.rotation.x = Math.PI / 2; shopDealer.add(thighL);
+    const thighR = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.5, 16), pantsMat); thighR.position.set(0.15, 0.4, -0.6); thighR.rotation.x = Math.PI / 2; shopDealer.add(thighR);
+    const calfL = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.4, 16), pantsMat); calfL.position.set(-0.15, 0.2, -0.3); shopDealer.add(calfL);
+    const calfR = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.4, 16), pantsMat); calfR.position.set(0.15, 0.2, -0.3); shopDealer.add(calfR);
+    const shoeL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.1, 0.25), shoeMat); shoeL.position.set(-0.15, 0.05, -0.35); shopDealer.add(shoeL);
+    const shoeR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.1, 0.25), shoeMat); shoeR.position.set(0.15, 0.05, -0.35); shopDealer.add(shoeR);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 32, 32), skinMat); head.position.set(0, 1.45, -0.9); head.castShadow = true; shopDealer.add(head);
+    const eL = new THREE.Mesh(new THREE.SphereGeometry(0.06, 16, 16), whiteMat); eL.position.set(-0.08, 1.5, -0.7); shopDealer.add(eL);
+    const eLb = new THREE.Mesh(new THREE.SphereGeometry(0.03, 16, 16), blackMat); eLb.position.set(-0.08, 1.5, -0.65); shopDealer.add(eLb);
+    const eR = new THREE.Mesh(new THREE.SphereGeometry(0.06, 16, 16), whiteMat); eR.position.set(0.08, 1.5, -0.7); shopDealer.add(eR);
+    const eRb = new THREE.Mesh(new THREE.SphereGeometry(0.03, 16, 16), blackMat); eRb.position.set(0.08, 1.5, -0.65); shopDealer.add(eRb);
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.1, 16), skinMat); nose.rotation.x = -Math.PI / 2; nose.position.set(0, 1.43, -0.65); shopDealer.add(nose);
+    const mustache = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.03, 0.03), blackMat); mustache.position.set(0, 1.38, -0.65); shopDealer.add(mustache);
+    const hatMat = new THREE.MeshLambertMaterial({ color: 0x5c3a21 });
+    const hatBrim = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.05, 32), hatMat); hatBrim.position.set(0, 1.6, -0.9); hatBrim.castShadow = true; shopDealer.add(hatBrim);
+    const hatTop = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.25, 0.3, 32), hatMat); hatTop.position.set(0, 1.75, -0.9); hatTop.castShadow = true; shopDealer.add(hatTop);
+    const armL = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.5, 16), skinMat); armL.rotation.x = Math.PI / 2; armL.rotation.z = -0.3; armL.position.set(-0.2, 1.0, -0.5); shopDealer.add(armL);
+    const armR = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.5, 16), skinMat); armR.rotation.x = Math.PI / 2; armR.rotation.z = 0.3; armR.position.set(0.2, 1.0, -0.5); shopDealer.add(armR);
+    const cigar = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.15, 16), new THREE.MeshLambertMaterial({ color: 0x4a2c11 })); cigar.rotation.x = Math.PI / 2; cigar.position.set(0.1, 1.4, -0.55); shopDealer.add(cigar);
+    const fire = new THREE.Mesh(new THREE.SphereGeometry(0.025, 16, 16), new THREE.MeshBasicMaterial({ color: 0xff4500 })); fire.position.set(0.12, 1.4, -0.48); shopDealer.add(fire);
+    const cigarTip = new THREE.Vector3(0.12, 1.4, -0.48);
+    for(let i=0; i<8; i++) { const smoke = new THREE.Mesh(new THREE.SphereGeometry(0.03, 16, 16), new THREE.MeshLambertMaterial({ color: 0xcccccc, transparent: true, opacity: 0.3 })); smoke.position.copy(cigarTip); smoke.userData = { basePos: cigarTip.clone(), life: Math.random() * 2, speed: 0.2 + Math.random() * 0.3 }; shopDealer.add(smoke); smokeParticles.push(smoke); }
+    shopDealer.position.set(0, 0, 10); scene.add(shopDealer); objects.push(shopDealer); obstacles.push({ mesh: shopDealer, radius: 1.8 });
+    grillStation = new THREE.Group();
+    const grillBody = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.3, 0.6, 32), new THREE.MeshLambertMaterial({ color: 0x111111 })); grillBody.position.y = 0.3; grillBody.castShadow = true; grillStation.add(grillBody);
+    const grillTop = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.1, 32), new THREE.MeshLambertMaterial({ color: 0x333333 })); grillTop.position.y = 0.65; grillTop.castShadow = true; grillStation.add(grillTop);
+    const fireMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.1, 32), new THREE.MeshBasicMaterial({ color: 0xff4500 })); fireMesh.position.y = 0.55; grillStation.add(fireMesh);
+    grillStation.position.set(1.5, 0, 9); scene.add(grillStation); objects.push(grillStation); obstacles.push({ mesh: grillStation, radius: 1.0 });
+}
+
+function createBoat() {
+    boatMesh = new THREE.Group(); const hullMat = new THREE.MeshLambertMaterial({ color: 0xffffff }); const darkMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+    const hull = new THREE.Mesh(new THREE.BoxGeometry(3.5, 1.5, 8), hullMat); hull.position.y = 0.75; hull.castShadow = true; boatMesh.add(hull);
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.2, 8.1), new THREE.MeshLambertMaterial({ color: 0xe74c3c })); stripe.position.y = 0.9; boatMesh.add(stripe);
+    const motor = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1.5), darkMat); motor.position.set(0, 1.2, 4.5); boatMesh.add(motor);
+    const glassMat = new THREE.MeshLambertMaterial({ color: 0x00aaff, transparent: true, opacity: 0.6 });
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(2.5, 1.5, 0.2), glassMat); glass.position.set(0, 1.8, -1); glass.rotation.x = -0.3; boatMesh.add(glass);
+    const seatL = new THREE.Mesh(new THREE.BoxGeometry(1, 0.5, 1.5), darkMat); seatL.position.set(-1, 0.5, 1.5); boatMesh.add(seatL);
+    const seatR = new THREE.Mesh(new THREE.BoxGeometry(1, 0.5, 1.5), darkMat); seatR.position.set(1, 0.5, 1.5); boatMesh.add(seatR);
+    const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.05, 8, 16), darkMat); wheel.position.set(0, 1.5, 0); wheel.rotation.x = -Math.PI / 4; boatMesh.add(wheel);
+    boatMesh.position.set(50, -0.8, 0); scene.add(boatMesh); objects.push(boatMesh);
+}
+
+function createHand(isLeft) {
+    const handGroup = new THREE.Group(); const skinMat = new THREE.MeshLambertMaterial({ color: 0xffcc99 }); const sleeveMat = new THREE.MeshLambertMaterial({ color: 0x2e8b57 });
+    const palm = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.15), skinMat); palm.castShadow = true; handGroup.add(palm);
+    const fingerGeo = new THREE.BoxGeometry(0.03, 0.06, 0.12);
+    for(let i=0; i<4; i++) { const finger = new THREE.Mesh(fingerGeo, skinMat); finger.position.set(-0.04 + i*0.026, 0.06, 0.08); finger.rotation.x = -0.5; handGroup.add(finger); }
+    const thumb = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.1, 0.04), skinMat); thumb.position.set(isLeft ? 0.06 : -0.06, -0.02, 0.05); thumb.rotation.z = isLeft ? -0.6 : 0.6; thumb.rotation.x = 0.3; handGroup.add(thumb);
+    const wrist = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.15), skinMat); wrist.position.set(0, -0.1, -0.05); wrist.rotation.x = 0.3; handGroup.add(wrist);
+    const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.4), sleeveMat); sleeve.position.set(0, -0.3, -0.15); sleeve.rotation.x = 0.3; handGroup.add(sleeve);
+    return handGroup;
+}
+
+function createWeapon() {
+    while(weaponModel.children.length > 0) weaponModel.remove(weaponModel.children[0]);
+    if (!torchLight) { torchLight = new THREE.PointLight(0xffaa00, 0, 60); torchLight.position.set(0, 0, -0.5); camera.add(torchLight); }
+    if (currentWeapon === 'torch') {
+        torchLight.intensity = 7.5;
+        const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.04, 0.8, 16), new THREE.MeshStandardMaterial({ color: 0x3e2723 })); handle.position.set(0.25, -0.2, -0.6); handle.rotation.x = -0.2; weaponModel.add(handle);
+        const cloth = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.08, 0.25, 16), new THREE.MeshStandardMaterial({ color: 0x777777 })); cloth.position.set(0.25, 0.2, -0.65); cloth.rotation.x = -0.2; weaponModel.add(cloth);
+        const fire = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.4, 16), new THREE.MeshBasicMaterial({ color: 0xff4500 })); fire.position.set(0.25, 0.5, -0.7); fire.rotation.x = -0.2; weaponModel.add(fire);
+        const rightHand = createHand(false); rightHand.position.set(0.25, -0.25, -0.5); weaponModel.add(rightHand);
+    } else {
+        torchLight.intensity = 0;
+        if (currentWeapon === 'glock') {
+            const polymer = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 }); const metal = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.9, roughness: 0.3 });
+            const frame = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.1, 0.5), polymer); frame.position.set(0, -0.02, -0.1); weaponModel.add(frame);
+            const grip = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.25, 0.12), polymer); grip.position.set(0, -0.15, 0.1); grip.rotation.x = -0.2; weaponModel.add(grip);
+            const slide = new THREE.Mesh(new THREE.BoxGeometry(0.082, 0.08, 0.55), metal); slide.position.set(0, 0.07, -0.12); weaponModel.add(slide);
+            const frontSight = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.02, 0.02), new THREE.MeshBasicMaterial({color: 0x000000})); frontSight.position.set(0, 0.12, -0.38); weaponModel.add(frontSight);
+            const rearSightL = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.02, 0.02), new THREE.MeshBasicMaterial({color: 0x000000})); rearSightL.position.set(-0.03, 0.12, 0.1); weaponModel.add(rearSightL);
+            const rearSightR = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.02, 0.02), new THREE.MeshBasicMaterial({color: 0x000000})); rearSightR.position.set(0.03, 0.12, 0.1); weaponModel.add(rearSightR);
+            const rightHand = createHand(false); rightHand.position.set(0, -0.2, 0.15); weaponModel.add(rightHand);
+            const leftHand = createHand(true); leftHand.position.set(-0.05, -0.22, 0.02); leftHand.rotation.y = 0.5; weaponModel.add(leftHand);
+        } else if (currentWeapon === 'deagle') {
+            const metal = new THREE.MeshStandardMaterial({ color: 0x2c3e50, metalness: 0.9, roughness: 0.2 }); const gold = new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 1.0, roughness: 0.1 }); const darkMetal = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.8, roughness: 0.4 });
+            const handle = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.35, 0.2), darkMetal); handle.position.set(0, -0.15, 0.05); handle.rotation.x = -0.3; weaponModel.add(handle);
+            const slide = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.16, 0.75), metal); slide.position.set(0, 0.05, -0.25); weaponModel.add(slide);
+            const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.03, 0.75), gold); rail.position.set(0, 0.15, -0.25); weaponModel.add(rail);
+            const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.12, 0.2), darkMetal); barrel.position.set(0, 0.05, -0.7); weaponModel.add(barrel);
+            const frontSight = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.03, 0.03), gold); frontSight.position.set(0, 0.17, -0.6); weaponModel.add(frontSight);
+            const rearSight = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.03, 0.03), darkMetal); rearSight.position.set(0, 0.17, 0.05); weaponModel.add(rearSight);
+            const rightHand = createHand(false); rightHand.position.set(0, -0.2, 0.15); rightHand.scale.set(1.1, 1.1, 1.1); weaponModel.add(rightHand);
+            const leftHand = createHand(true); leftHand.position.set(-0.05, -0.22, 0.02); leftHand.rotation.y = 0.5; leftHand.scale.set(1.1, 1.1, 1.1); weaponModel.add(leftHand);
+        }
+    }
+    weaponModel.position.set(0.25, -0.28, -0.6); camera.add(weaponModel); scene.add(camera);
+}
+
+function createDeer() {
+    const g = new THREE.Group(); const brown = new THREE.MeshLambertMaterial({ color: 0x8b4513, transparent: true }); const lightBrown = new THREE.MeshLambertMaterial({ color: 0xa0522d, transparent: true }); const dark = new THREE.MeshLambertMaterial({ color: 0x3e1a05, transparent: true }); const w = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true }); const b = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 16), brown); body.scale.set(1, 0.9, 1.6); body.position.y = 1.0; body.castShadow = true; g.add(body);
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.3, 0.6, 12), brown); neck.rotation.x = -Math.PI / 6; neck.position.set(0, 1.3, -0.6); neck.castShadow = true; g.add(neck);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 16), lightBrown); head.scale.set(0.8, 0.8, 1.2); head.position.set(0, 1.6, -0.9); head.castShadow = true; g.add(head);
+    const eL = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), w); eL.position.set(-0.1, 1.65, -1.05); g.add(eL); const eLb = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 8), b); eLb.position.set(-0.12, 1.65, -1.07); g.add(eLb);
+    const eR = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), w); eR.position.set(0.1, 1.65, -1.05); g.add(eR); const eRb = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 8), b); eRb.position.set(0.12, 1.65, -1.07); g.add(eRb);
+    const nose = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), b); nose.position.set(0, 1.55, -1.15); g.add(nose);
+    const earGeo = new THREE.ConeGeometry(0.06, 0.2, 8); const earL = new THREE.Mesh(earGeo, brown); earL.position.set(-0.15, 1.8, -0.9); earL.rotation.z = -0.6; g.add(earL); const earR = new THREE.Mesh(earGeo, brown); earR.position.set(0.15, 1.8, -0.9); earR.rotation.z = 0.6; g.add(earR);
+    const legGeo = new THREE.CylinderGeometry(0.06, 0.05, 0.9, 8);
+    [[-0.2, 0.45, -0.4], [0.2, 0.45, -0.4], [-0.2, 0.45, 0.4], [0.2, 0.45, 0.4]].forEach(p => { const l = new THREE.Mesh(legGeo, dark); l.position.set(p[0], p[1], p[2]); l.castShadow = true; g.add(l); });
+    const aGeo = new THREE.CylinderGeometry(0.02, 0.015, 0.4, 6); const aL = new THREE.Mesh(aGeo, dark); aL.position.set(-0.08, 1.9, -0.9); aL.rotation.z = Math.PI / 4; g.add(aL); const aR = new THREE.Mesh(aGeo, dark); aR.position.set(0.08, 1.9, -0.9); aR.rotation.z = -Math.PI / 4; g.add(aR);
+    g.userData = { type: 'deer', points: 3, target: new THREE.Vector3(), state: 'idle', stateTimer: 1 }; return g;
+}
+
+function createCow() {
+    const g = new THREE.Group(); const white = new THREE.MeshLambertMaterial({ color: 0xf0f0f0, transparent: true }); const black = new THREE.MeshLambertMaterial({ color: 0x111111, transparent: true }); const pink = new THREE.MeshLambertMaterial({ color: 0xffb6c1, transparent: true }); const b = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true }); const w = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.7, 16, 16), white); body.scale.set(1, 1, 1.3); body.position.y = 1.1; body.castShadow = true; g.add(body);
+    const s1 = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 12), black); s1.scale.set(1, 1.2, 0.8); s1.position.set(0.5, 1.2, -0.3); g.add(s1); const s2 = new THREE.Mesh(new THREE.SphereGeometry(0.4, 12, 12), black); s2.scale.set(0.8, 1, 1.2); s2.position.set(-0.4, 1.0, 0.4); g.add(s2);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.35, 16, 16), white); head.position.set(0, 1.6, -0.9); head.castShadow = true; g.add(head);
+    const snout = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.25, 0.3), pink); snout.position.set(0, 1.5, -1.15); snout.castShadow = true; g.add(snout);
+    const nL = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), b); nL.position.set(-0.1, 1.5, -1.3); g.add(nL); const nR = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), b); nR.position.set(0.1, 1.5, -1.3); g.add(nR);
+    const eL = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), w); eL.position.set(-0.2, 1.7, -1.0); g.add(eL); const eLb = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), b); eLb.position.set(-0.2, 1.7, -1.05); g.add(eLb);
+    const eR = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), w); eR.position.set(0.2, 1.7, -1.0); g.add(eR); const eRb = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), b); eRb.position.set(0.2, 1.7, -1.05); g.add(eRb);
+    const earGeo = new THREE.SphereGeometry(0.12, 8, 8); const earL = new THREE.Mesh(earGeo, white); earL.scale.set(0.5, 1, 1); earL.position.set(-0.35, 1.7, -0.9); g.add(earL); const earR = new THREE.Mesh(earGeo, white); earR.scale.set(0.5, 1, 1); earR.position.set(0.35, 1.7, -0.9); g.add(earR);
+    const hornGeo = new THREE.ConeGeometry(0.06, 0.2, 8); const h1 = new THREE.Mesh(hornGeo, white); h1.position.set(-0.2, 1.85, -0.9); h1.rotation.z = -0.6; g.add(h1); const h2 = new THREE.Mesh(hornGeo, white); h2.position.set(0.2, 1.85, -0.9); h2.rotation.z = 0.6; g.add(h2);
+    const udder = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 12), pink); udder.position.set(0, 0.6, 0.3); g.add(udder);
+    const legGeo = new THREE.CylinderGeometry(0.1, 0.08, 0.9, 8);
+    [[-0.3, 0.45, -0.5], [0.3, 0.45, -0.5], [-0.3, 0.45, 0.5], [0.3, 0.45, 0.5]].forEach(p => { const l = new THREE.Mesh(legGeo, white); l.position.set(p[0], p[1], p[2]); l.castShadow = true; g.add(l); });
+    g.userData = { type: 'cow', points: 6, target: new THREE.Vector3(), state: 'idle', stateTimer: 1, mooTimer: Math.random() * 20 }; return g;
+}
+
+function spawnAnimal(type) {
+    const animal = type === 'deer' ? createDeer() : createCow();
+    const angle = Math.random() * Math.PI * 2, dist = 10 + Math.random() * 25;
+    animal.position.set(Math.cos(angle) * dist, 0, Math.sin(angle) * dist); animal.rotation.y = Math.random() * Math.PI * 2;
+    const tAngle = Math.random() * Math.PI * 2, tDist = 5 + Math.random() * 20;
+    animal.userData.target.set(Math.cos(tAngle) * tDist, 0, Math.sin(tAngle) * tDist);
+    scene.add(animal); animals.push(animal);
+}
+function spawnInitialAnimals() { for(let i=0; i<10; i++) spawnAnimal('deer'); }
+function updateAmmoUI() { document.getElementById('ammo').innerText = `Патроны: ${ammo} / ${maxAmmo}`; }
+function reload() { 
+    if (isReloading || ammo === maxAmmo || currentWeapon === 'torch') return; 
+    isReloading = true; sounds.reload.play(); document.getElementById('ammo').innerText = "Перезарядка..."; 
+    clearTimeout(reloadTimeout);
+    reloadTimeout = setTimeout(() => { ammo = maxAmmo; isReloading = false; updateAmmoUI(); }, 1500); 
+}
+function showHitMarker(text, color) { const m = document.getElementById('hit-marker'); m.innerText = text; m.style.color = color; m.style.opacity = 1; setTimeout(() => { m.style.opacity = 0; }, 1000); }
+
+function shoot() {
+    if (isReloading || currentWeapon === 'torch') return;
+    if (ammo <= 0) { sounds.empty.play(); return; }
+    ammo--; updateAmmoUI(); recoilTime = 0.1; if(currentWeapon === 'glock') sounds.glock.play(); else if(currentWeapon === 'deagle') sounds.deagle.play();
+    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+    const range = 50;
+    for (let i = animals.length - 1; i >= 0; i--) {
+        const animal = animals[i]; const hit = raycaster.intersectObject(animal, true);
+        if (hit.length > 0 && hit[0].distance <= range) {
+            const type = animal.userData.type; let points = animal.userData.points, styleText = "";
+            if (hit[0].point.y - animal.position.y > 1.45) { points *= 2; styleText += " HEADSHOT!"; }
+            if (camera.position.y > 1.9) { points *= 3; styleText += " AIRSHOT!"; }
+            animal.userData.isDead = true; animal.userData.deathTime = 0; deadAnimals.push(animal); animals.splice(i, 1);
+            money += Math.floor(points); document.getElementById('money').innerText = money; showHitMarker(`+${Math.floor(points)}$ ${styleText}`, '#2ecc71'); sounds.kill.play();
+            if (type === 'deer') spawnMeat(animal.position, 'deer', 1); if (type === 'cow') spawnMeat(animal.position, 'cow', 2);
+            let spawnType = type; if (type === 'deer') { deerKillCount++; if (deerKillCount >= 2) { spawnType = 'cow'; deerKillCount = 0; } }
+            setTimeout(() => { if (animals.length < MAX_ANIMALS) spawnAnimal(spawnType); }, 5000);
+            if (ammo === 0 && !isReloading) setTimeout(reload, 300); return;
+        }
+    }
+    if (ammo === 0 && !isReloading) setTimeout(reload, 300);
+}
+
+function spawnMeat(pos, type, count) {
+    for (let i = 0; i < count; i++) {
+        const meatGroup = new THREE.Group();
+        const meat = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.2, 16), new THREE.MeshLambertMaterial({ color: 0xcc0000 })); meat.rotation.z = Math.PI / 2; meat.castShadow = true; meatGroup.add(meat);
+        const bone = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.3, 16), new THREE.MeshLambertMaterial({ color: 0xffffff })); bone.rotation.z = Math.PI / 2; bone.position.y = 0.1; meatGroup.add(bone);
+        meatGroup.position.copy(pos); meatGroup.position.y = 0.2; meatGroup.position.x += (Math.random() - 0.5) * 2; meatGroup.position.z += (Math.random() - 0.5) * 2;
+        meatGroup.userData = { type: type, value: type === 'deer' ? 5 : 10 }; scene.add(meatGroup); meats.push(meatGroup);
+    }
+}
+function pickUpMeat(meatMesh) { if (rawMeat < 4) { scene.remove(meatMesh); const idx = meats.indexOf(meatMesh); if (idx > -1) meats.splice(idx, 1); rawMeat++; updateInventoryUI(); nearMeat = null; sounds.pickup.play(); } }
+function interactGrill() {
+    if (isCooking) { 
+        isCooking = false; 
+        sounds.grill.stop(); 
+        if (cookTimer > 4 && cookTimer < 8) { cookedMeat++; } else { rawMeat++; } 
+        updateInventoryUI(); grillStation.remove(grillMeatMesh); grillMeatMesh = null; cookTimer = 0; 
+    } else if (rawMeat > 0) { 
+        rawMeat--; updateInventoryUI(); isCooking = true; cookTimer = 0; 
+        sounds.grill.play(); 
+        grillMeatMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.2, 16), new THREE.MeshLambertMaterial({ color: 0xcc0000 })); grillMeatMesh.rotation.z = Math.PI / 2; grillMeatMesh.position.set(0, 0.7, 0); grillStation.add(grillMeatMesh); 
+    }
+}
+function sellMeat() { if (rawMeat > 0 || cookedMeat > 0) { const earned = (rawMeat * 5) + (cookedMeat * 7.5); money += earned; rawMeat = 0; cookedMeat = 0; updateInventoryUI(); document.getElementById('money').innerText = money; showHitMarker(`+${earned}$`, '#f1c40f'); sounds.buy.play(); } }
+function updateInventoryUI() {
+    const sr = document.getElementById('slot-raw'), sc = document.getElementById('slot-cooked');
+    document.getElementById('raw-count').innerText = `Сырое: ${rawMeat}`; document.getElementById('cooked-count').innerText = `Готовое: ${cookedMeat}`;
+    if (rawMeat > 0) { sr.classList.add('filled'); sr.querySelector('.inv-icon').style.display = 'block'; } else { sr.classList.remove('filled'); sr.querySelector('.inv-icon').style.display = 'none'; }
+    if (cookedMeat > 0) { sc.classList.add('cooked'); sc.querySelector('.inv-icon').style.display = 'block'; } else { sc.classList.remove('cooked'); sc.querySelector('.inv-icon').style.display = 'none'; }
+}
+function toggleBoat() {
+    if (!hasBoatKey) { showHitMarker("Нужен ключ!", 'red'); return; }
+    if (!inBoat && boatLocked) { showHitMarker("Лодка занята!", 'red'); return; }
+    inBoat = !inBoat;
+    if (inBoat) { camera.position.set(boatMesh.position.x, boatMesh.position.y + 2.5, boatMesh.position.z); weaponModel.visible = false; boatSpeed = 0; boatRotation = 0; if (socket && typeof io !== 'undefined') { socket.emit('enterBoat', 0); socket.emit('setDriver', true); } sounds.boat.play(); }
+    else { camera.position.set(boatMesh.position.x + 2, 1.7, boatMesh.position.z); const d1 = Math.sqrt(camera.position.x**2 + camera.position.z**2); const d2 = Math.sqrt((camera.position.x - ISLAND_DISTANCE)**2 + camera.position.z**2); if (d1 > 48 && d2 > 48) camera.position.y = 1.0; boatSpeed = 0; weaponModel.visible = true; if (socket && typeof io !== 'undefined') { socket.emit('exitBoat'); socket.emit('setDriver', false); } sounds.boat.stop(); }
+}
+
+function initNetwork() {
+    if (typeof io === 'undefined') { socket = { emit: () => {}, on: () => {} }; return; }
+    socket = io();
+    function createPlayerMesh() {
+        const grp = new THREE.Group(); const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.3, 0.8, 16), new THREE.MeshStandardMaterial({ color: 0x2e8b57 })); torso.position.y = 0.85; torso.castShadow = true; grp.add(torso);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 32, 32), new THREE.MeshStandardMaterial({ color: 0xffcc99 })); head.position.y = 1.45; head.castShadow = true; grp.add(head);
+        const hatMat = new THREE.MeshStandardMaterial({ color: 0x5c3a21 }); const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.05, 32), hatMat); brim.position.y = 1.6; grp.add(brim); const top = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.25, 0.3, 32), hatMat); top.position.y = 1.75; grp.add(top);
+        const legGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.8, 16); const legMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
+        const lL = new THREE.Mesh(legGeo, legMat); lL.position.set(-0.15, 0.4, 0); grp.add(lL); const lR = new THREE.Mesh(legGeo, legMat); lR.position.set(0.15, 0.4, 0); grp.add(lR);
+        return grp;
+    }
+    socket.on('currentPlayers', (players) => { Object.keys(players).forEach(id => { if (id !== socket.id) { const mesh = createPlayerMesh(); mesh.position.set(players[id].x, players[id].y, players[id].z); mesh.rotation.y = players[id].rotationY; scene.add(mesh); otherPlayers[id] = mesh; targetPositions[id] = { x: players[id].x, y: players[id].y, z: players[id].z }; } }); });
+    socket.on('newPlayer', (d) => { if (d.id !== socket.id) { const mesh = createPlayerMesh(); mesh.position.set(d.player.x, d.player.y, d.player.z); mesh.rotation.y = d.player.rotationY; scene.add(mesh); otherPlayers[d.id] = mesh; targetPositions[d.id] = { x: d.player.x, y: d.player.y, z: d.player.z }; } });
+    socket.on('playerMoved', (d) => { if (targetPositions[d.id]) { targetPositions[d.id] = { x: d.player.x, y: d.player.y, z: d.player.z, rot: d.player.rotationY }; if (otherPlayers[d.id]) otherPlayers[d.id].visible = !d.player.inBoat; } });
+    socket.on('playerDisconnected', (id) => { if (otherPlayers[id]) { scene.remove(otherPlayers[id]); delete otherPlayers[id]; delete targetPositions[id]; } });
+    socket.on('currentBoat', (d) => { if (boatMesh) { boatMesh.position.set(d.x, d.y, d.z); boatMesh.rotation.y = d.rotationY; } hasBoatKey = d.keyOwned; if (hasBoatKey) document.getElementById('compass-container').style.display = 'block'; });
+    socket.on('keyBought', () => { hasBoatKey = true; document.getElementById('compass-container').style.display = 'block'; const km = shopDealer.getObjectByName('boat_key'); if (km) km.visible = false; });
+    socket.on('boatMoved', (d) => { if (!inBoat && boatMesh) { boatMesh.position.set(d.x, d.y, d.z); boatMesh.rotation.y = d.rotationY; } });
+    setInterval(() => { if (controls.isLocked) { socket.emit('playerMovement', { x: camera.position.x, y: camera.position.y - 1.7, z: camera.position.z, rotationY: camera.rotation.y, inBoat: inBoat }); if (inBoat && boatMesh) socket.emit('boatMovement', { x: boatMesh.position.x, y: boatMesh.position.y, z: boatMesh.position.z, rotationY: boatMesh.rotation.y }); } }, 30);
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    const delta = Math.min(clock.getDelta(), 0.1);
+
+    gameTime += delta;
+    const totalCycle = 360;
+    const t = gameTime % totalCycle;
+    let angle;
+    if (t < 300) angle = (t / 300) * Math.PI;
+    else angle = Math.PI + ((t - 300) / 60) * Math.PI;
+
+    const rawDay = (Math.sin(angle) + 1) / 2;
+    const dayFactor = THREE.MathUtils.smoothstep(rawDay, 0.3, 0.7);
+    scene.background.lerpColors(new THREE.Color(0x0a0a2a), new THREE.Color(0x87CEEB), dayFactor);
+
+    const sunX = camera.position.x + Math.cos(angle) * 100;
+    const sunY = Math.sin(angle) * 100;
+    const sunZ = camera.position.z + Math.sin(angle * 0.5) * 50;
+    dirLight.position.set(sunX, sunY, sunZ);
+    dirLight.target.position.set(camera.position.x, 0, camera.position.z);
+    dirLight.target.updateMatrixWorld();
+    dirLight.intensity = Math.max(0, dayFactor * 1.8);
+    hemiLight.intensity = 0.1 + (dayFactor * 0.8);
+    hemiLight.color.setHex(dayFactor > 0.5 ? 0xffffff : 0x333333);
+    sunMesh.position.set(sunX, sunY, sunZ);
+    sunMesh.visible = dayFactor > 0.1;
+
+    const moonX = camera.position.x + Math.cos(angle + Math.PI) * 100;
+    const moonY = Math.sin(angle + Math.PI) * 100;
+    const moonZ = camera.position.z + Math.sin((angle + Math.PI) * 0.5) * 50;
+    moonMesh.position.set(moonX, moonY, moonZ);
+    moonMesh.visible = dayFactor < 0.9;
+    moonLight.position.set(moonX, moonY, moonZ);
+    moonLight.intensity = Math.max(0, (1 - dayFactor) * 0.4);
+    moonLight.target.position.set(camera.position.x, 0, camera.position.z);
+    moonLight.target.updateMatrixWorld();
+
+    let cloudBlockingSun = false;
+    clouds.forEach(cloud => {
+        cloud.position.x += cloud.userData.speed * delta * 5;
+        if (cloud.position.x > camera.position.x + 400) { cloud.position.x = camera.position.x - 400; cloud.position.z = camera.position.z + (Math.random() * 800 - 400); }
+        if (cloud.position.distanceTo(sunMesh.position) < 25 && dayFactor > 0.1) cloudBlockingSun = true;
+    });
+    if (cloudBlockingSun) dirLight.intensity *= 0.3;
+
+    animals.forEach(a => {
+        a.userData.stateTimer -= delta;
+        if (a.userData.type === 'cow') {
+            a.userData.mooTimer -= delta;
+            if (a.userData.mooTimer <= 0) {
+                sounds.cow.play();
+                a.userData.mooTimer = 15 + Math.random() * 20;
+            }
+        }
+        if (a.userData.state === 'idle') {
+            if (a.userData.stateTimer <= 0) {
+                if (a.userData.type === 'cow' && Math.random() < 0.4) { a.userData.state = 'eating'; a.userData.stateTimer = 3.0 + Math.random() * 2.0; }
+                else { a.userData.state = 'walking'; const tAngle = Math.random() * Math.PI * 2, tDist = 5 + Math.random() * 20; a.userData.target.set(Math.cos(tAngle) * tDist, 0, Math.sin(tAngle) * tDist); }
+            }
+        } else if (a.userData.state === 'walking') {
+            const dir = new THREE.Vector3().subVectors(a.userData.target, a.position); dir.y = 0;
+            let hitObstacle = false;
+            const nextPos = a.position.clone().add(dir.clone().normalize().multiplyScalar(1.5 * delta));
+            for (let obs of obstacles) { const obsPos = new THREE.Vector3(); obs.mesh.getWorldPosition(obsPos); if (nextPos.distanceTo(obsPos) < obs.radius + 1.0) { hitObstacle = true; break; } }
+            if (dir.length() > 0.5 && !hitObstacle) {
+                dir.normalize(); a.position.addScaledVector(dir, 1.5 * delta);
+                const tr = Math.atan2(dir.x, dir.z) + Math.PI; let diff = tr - a.rotation.y;
+                while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2;
+                a.rotation.y += diff * 5 * delta;
+            } else { a.userData.state = 'idle'; a.userData.stateTimer = 0.5 + Math.random() * 1.0; }
+        } else if (a.userData.state === 'eating') {
+            a.rotation.x = THREE.MathUtils.lerp(a.rotation.x, 0.4, 0.1);
+            if (a.userData.stateTimer <= 0) { a.userData.state = 'idle'; a.userData.stateTimer = 0.5; }
+        }
+        if (a.userData.state !== 'eating') { a.rotation.x = THREE.MathUtils.lerp(a.rotation.x, 0, 0.1); }
+    });
+
+    deadAnimals.forEach((a, idx) => {
+        a.userData.deathTime += delta;
+        if (a.userData.deathTime < 2) { a.rotation.z = THREE.MathUtils.lerp(a.rotation.z, Math.PI / 2, 0.1); a.position.y = THREE.MathUtils.lerp(a.position.y, 0, 0.1); a.traverse(c => { if (c.material && c.material.transparent) c.material.opacity = 1 - (a.userData.deathTime / 2); }); } else { scene.remove(a); deadAnimals.splice(idx, 1); }
+    });
+
+    smokeParticles.forEach(s => {
+        s.position.y += s.userData.speed * delta; s.position.x += Math.sin(clock.elapsedTime * 2 + s.userData.life) * 0.01 * delta;
+        s.scale.addScalar(0.4 * delta); s.material.opacity -= 0.2 * delta;
+        if (s.material.opacity <= 0) { s.position.copy(s.userData.basePos); s.scale.set(1,1,1); s.material.opacity = 0.4; }
+    });
+
+    if (controls.isLocked) {
+        const dist1 = Math.sqrt(camera.position.x**2 + camera.position.z**2); const dist2 = Math.sqrt((camera.position.x - ISLAND_DISTANCE)**2 + camera.position.z**2);
+        const onIsland1 = dist1 < 48, onIsland2 = dist2 < 48;
+        
+        if (!onIsland1 && !onIsland2 && !inBoat) {
+            if (!isInWater) { isInWater = true; waterTimer = 5.0; document.getElementById('water-warning').style.display = 'block'; }
+            waterTimer -= delta; document.getElementById('water-warning').innerText = `ВЫ В ВОДЕ! ВЕРНИТЕСЬ!\nСмерть через ${waterTimer.toFixed(1)} сек!`;
+            if (waterTimer <= 0) {
+                if (camera.position.x > ISLAND_DISTANCE / 2) camera.position.set(ISLAND_DISTANCE, 1.7, 0); else camera.position.set(0, 1.7, 0);
+                money = Math.max(0, money - 50); rawMeat = 0; cookedMeat = 0; updateInventoryUI(); document.getElementById('money').innerText = money;
+                isInWater = false; document.getElementById('water-warning').style.display = 'none'; showHitMarker("-50$ (утонул)", 'red');
+                if (socket) socket.emit('playerRespawn', { x: camera.position.x, y: camera.position.y - 1.7, z: camera.position.z });
+            }
+        } else if (isInWater) { isInWater = false; document.getElementById('water-warning').style.display = 'none'; }
+
+        if (inBoat) {
+            let tSpeed = 0, tRot = 0;
+            if (moveState.forward) tSpeed = MAX_BOAT_SPEED; else if (moveState.backward) tSpeed = -MAX_BOAT_SPEED * 0.5;
+            if (moveState.left) tRot = 1.2; if (moveState.right) tRot = -1.2;
+            boatSpeed += (tSpeed - boatSpeed) * 1.5 * delta; boatRotation += (tRot - boatRotation) * 2.0 * delta;
+            if (Math.abs(boatSpeed) > 0.1) boatMesh.rotation.y += boatRotation * delta;
+            boatMesh.position.x -= Math.sin(boatMesh.rotation.y) * boatSpeed * delta; boatMesh.position.z -= Math.cos(boatMesh.rotation.y) * boatSpeed * delta;
+            const bd1 = Math.sqrt(boatMesh.position.x**2 + boatMesh.position.z**2), bd2 = Math.sqrt((boatMesh.position.x - ISLAND_DISTANCE)**2 + boatMesh.position.z**2);
+            if (bd1 < 48.5 || bd2 < 48.5) { const cx = bd1 < 48.5 ? 0 : ISLAND_DISTANCE; const a3 = Math.atan2(boatMesh.position.z, boatMesh.position.x - cx); boatMesh.position.x = cx + Math.cos(a3) * 48.5; boatMesh.position.z = Math.sin(a3) * 48.5; boatSpeed *= -0.5; }
+            camera.position.set(boatMesh.position.x, boatMesh.position.y + 2.5, boatMesh.position.z);
+        } else {
+            // --- ФИЗИКА ИГРОКА С ЗАЩИТОЙ ОТ NAN ---
+            velocity.x -= velocity.x * 10.0 * delta; 
+            velocity.z -= velocity.z * 10.0 * delta; 
+            velocity.y -= 19.6 * delta; 
+            
+            direction.z = Number(moveState.forward) - Number(moveState.backward); 
+            direction.x = Number(moveState.right) - Number(moveState.left); 
+            direction.normalize();
+            
+            if (moveState.forward || moveState.backward) velocity.z -= direction.z * 80.0 * delta;
+            if (moveState.left || moveState.right) velocity.x -= direction.x * 80.0 * delta;
+
+            // БЕЗОПАСНЫЙ ВЕКТОР (чтобы не было NaN, если смотрим строго вниз)
+            let forwardDir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+            forwardDir.y = 0;
+            if (forwardDir.lengthSq() < 0.0001) forwardDir.set(-Math.sin(camera.rotation.y), 0, -Math.cos(camera.rotation.y));
+            forwardDir.normalize();
+
+            let rightDir = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+            rightDir.y = 0;
+            if (rightDir.lengthSq() < 0.0001) rightDir.set(Math.cos(camera.rotation.y), 0, -Math.sin(camera.rotation.y));
+            rightDir.normalize();
+
+            camera.position.addScaledVector(forwardDir, -velocity.z * delta);
+            camera.position.addScaledVector(rightDir, -velocity.x * delta);
+            
+            camera.position.y += velocity.y * delta;
+
+            // Если координаты сломались — телепорт на спавн
+            if (isNaN(camera.position.x) || isNaN(camera.position.y) || isNaN(camera.position.z)) {
+                camera.position.set(0, 1.7, 0); velocity.set(0, 0, 0); canJump = true;
+            }
+
+            // ЖЕСТКИЙ ПОЛ
+            if (camera.position.y < 1.7 && !isInWater) { 
+                if (velocity.y < -5) sounds.land.play();
+                velocity.y = 0; 
+                camera.position.y = 1.7; 
+                canJump = true; 
+            }
+            if (isInWater) { camera.position.y = 1.0; velocity.y = 0; }
+
+            // КОЛЛИЗИИ
+            for (let obs of obstacles) {
+                const obsPos = new THREE.Vector3(); obs.mesh.getWorldPosition(obsPos);
+                const dx = camera.position.x - obsPos.x;
+                const dz = camera.position.z - obsPos.z;
+                const dist = Math.sqrt(dx * dx + dz * dz);
+                const minDist = obs.radius + 0.4;
+                if (dist < minDist && dist > 0.001) {
+                    const pushX = (dx / dist) * (minDist - dist);
+                    const pushZ = (dz / dist) * (minDist - dist);
+                    camera.position.x += pushX;
+                    camera.position.z += pushZ;
+                }
+            }
+            
+            if (moveState.forward || moveState.backward || moveState.left || moveState.right) {
+                stepTimer -= delta;
+                if (stepTimer <= 0) { sounds.step.play(); stepTimer = 0.4; }
+            }
+        }
+
+        if (hasBoatKey) {
+            const targetX = (camera.position.x < ISLAND_DISTANCE / 2) ? ISLAND_DISTANCE : 0; const dx = targetX - camera.position.x, dz = 0 - camera.position.z;
+            camera.getWorldDirection(tempVec1); const cur = Math.atan2(tempVec1.x, tempVec1.z), tgt = Math.atan2(dx, dz);
+            let diff = tgt - cur; while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2;
+            document.getElementById('compass-arrow').style.transform = `rotate(${diff}rad)`;
+        }
+
+        const dS = camera.position.distanceTo(shopDealer.position), dG = camera.position.distanceTo(grillStation.position), dB = camera.position.distanceTo(boatMesh.position);
+        const hint = document.getElementById('interaction-hint'); let hintText = ""; isNearShop = false; isNearGrill = false; isNearBoat = false; nearMeat = null;
+        if (inBoat) hintText = "Нажми [E] чтобы выйти из катера"; else if (dB < 6) { isNearBoat = true; hintText = "Нажми [E] чтобы сесть в катер"; } else if (dS < 3.5) { isNearShop = true; hintText = "Нажми [E] чтобы открыть
